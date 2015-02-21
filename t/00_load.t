@@ -23,7 +23,7 @@ eval { $obj = CalVAD::WIM::StoreStatusSpreadsheeets->new('host'=>'bleh',
                                                         ); };
 is($obj, undef, 'object creation should not work without required fields');
 eval { $obj = CalVAD::WIM::StoreStatusSpreadsheeets->new('host'=>'bleh',
-                                                         'db'=>"boo",
+                                                         'db'=>'boo',
                                                          'user'=>'blah',
                                                          'data'=>[1,2,3]
                                                         ); };
