@@ -70,6 +70,15 @@ if($@) {
 }
 
 
+$schema->populate("Public::WimStatusCode",[
+  {'status'=>'G','description'=>'Good data'},
+  {'status'=>'XX','description'=>'No data'},
+  {'status'=>'M','description'=>'Marginal:  acceptable minor  errors.  Data is slighty above defined error limits.  Possible calibration'},
+  {'status'=>'B','description'=>'Bad data.  Unusable  1 or  more  lanes'},
+  {'status'=>'*','description'=>'Possible problem watching for next month data'},
+  {'status'=>'P/B','description'=>'Partially Bad'},
+  {'status'=>'N/P','description'=>'Needs Processing'}
+                  ]);
 my $test_data = [
           {
             'weight_notes' => 'High Wgt Over LN #1,2,3',
@@ -167,7 +176,39 @@ my $new_status_codes  = $obj->new_status_codes;
 is_deeply($new_status_codes,{},'before doing anything, new should be empty');
 
 my $current_status_codes  = $obj->status_codes;
-is_deeply($current_status_codes,{},'nothing in the db, but the query worked');
+is_deeply($current_status_codes,
+          {
+    'G'=>1,
+    'XX'=>1,
+    'M'=>1,
+    'B'=>1,
+    '*'=>1,
+    'P/B'=>1,
+    'N/P'=>1,
+},'nothing in the db, but the query worked');
+
+is_deeply(warning{ $obj->save_data() }
+     ,[],'no warning');
+# check that it got stashed properly
+for(@{$test_data}){
+    my $wimstatus = $schema->resultset("Public::WimStatus")->find($_->{'site_no'},$_->{'ts'},
+);
+    my $stored = {
+        'site_no'=>$wimstatus->get_column('site_no'),
+        'ts'=>$wimstatus->ts,
+        'class_status'=>$wimstatus->get_column('class_status'),
+        'class_notes'=>$wimstatus->class_notes,
+        'weight_status'=>$wimstatus->get_column('weight_status'),
+        'weight_notes'=>$wimstatus->weight_notes,
+        'internal_class_notes'=>$wimstatus->internal_class_notes,
+        'internal_weight_notes'=>$wimstatus->internal_weight_notes,
+    };
+    is_deeply($stored,$_,"matched $_->{'site_no'}");
+}
+# what happens when I try it again? should get a warning
+my @warnings = warnings { $obj->save_data() };
+like($warnings[0], qr/^duplicate key detected/, 'warned ok');
+like($warnings[1], qr/^drop down to individual rows/, 'warned ok');
 
 
 done_testing;

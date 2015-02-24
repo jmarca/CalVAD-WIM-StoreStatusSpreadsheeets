@@ -2,7 +2,8 @@
 package CalVAD::WIM::StoreStatusSpreadsheeets;
 
 use Moose;
-
+use Carp;
+use Data::Dumper;
 my $noop = sub {};
 
 
@@ -72,5 +73,46 @@ sub _build_inner_loop_method {
 
 with 'Spatialvds::CopyIn';
 # with 'CouchDB::Trackable';
+sub _save_chunk{
+    my $self = shift;
+    my $bulk = shift;
+    my $rs = $self->resultset('Public::WimStatus');
+    eval{
+        $self->populate('Public::WimStatus',$bulk);
+    };
+    if($@){
+        return $@;
+    }
+    return;
+}
 
+sub save_data {
+    my $self = shift;
+    my $bulk = $self->data;
+    # entries might already be in database, so do the usual strategy
+    # of bulk save a bunch at a time, and if there is an issue, drop
+    # down to one by one
+    my $result = $self->_save_chunk($bulk);
+    if($result){
+        # probably a unique key collision.  Don't panic
+        if($result =~ /duplicate key value/){
+            carp 'duplicate key detected, saving individual rows';
+            # save groups of 10
+            while(@{$bulk}){
+                my @some = splice @{$bulk},0,100;
+                $result = $self->_save_chunk(\@some);
+                if($result =~ /duplicate key value/){
+                    carp 'drop down to individual rows';
+                    for my $row (@some){
+                        $self->_save_chunk([$row]);
+                    }
+                }
+            }
+
+        }else{
+            croak $result;
+        }
+    }
+    return;
+}
 1;
