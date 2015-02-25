@@ -1,120 +1,118 @@
-use strict;
-use warnings;
+# ABSTRACT: turns baubles into trinkets
 package CalVAD::WIM::StoreStatusSpreadsheeets;
 
-use namespace::autoclean;
 use Moose;
-
-use Testbed::Spatial::VDS::Schema;
+use Carp;
+use Data::Dumper;
+my $noop = sub {};
 
 
 has 'data' => (
-               is=>'ro',
-               isa=>'ArrayRef',
-               required => 1,
-              );
+    is=>'ro',
+    isa=>'ArrayRef',
+    required => 1,
+    );
 
 has 'status_codes' => (
-                       is=>'ro',
-                       isa=>'HashRef',
-                       lazy=>1,
-                       init_arg => undef,
-                       builder => '_build_status_codes',
-                      );
+    is=>'ro',
+    isa=>'HashRef',
+    lazy=>1,
+    init_arg => undef,
+    builder => '_build_status_codes',
+    );
 
 has 'new_status_codes' => (
-                           is=>'rw',
-                           lazy=>1,
-                           isa=>'HashRef',
-                           init_arg => undef,
-                           builder => '_build_new_status_codes',
-                          );
-has 'db_connection' => (is=>'ro',
-                        lazy=>1,
-                        isa=>'Ref',
-                        init_arg=>undef,
-                        builder => '_build_db_connection',
-                       );
-has 'db' =>(
-            is=>'ro',
-            isa=>'Str',
-            required=>1,
-           );
-
-has 'host'=>(
-            is=>'ro',
-            isa=>'Str',
-            required=>1,
-           );
-has 'user'=>(
-            is=>'ro',
-            isa=>'Str',
-            required=>1,
-           );
-
-has 'pass'=>(
-            is=>'ro',
-            isa=>'Str',
-            required=>0,
-           );
-
-sub _build_db_connection {
-  my $self = shift;
-  my $db = $self->db;
-  my $host = $self->host;
-  my $user = $self->user;
-  my $pass = $self->pass;
-  my $vdb;
-  if($pass){
-      $vdb =
-          Testbed::Spatial::VDS::Schema->connect( "dbi:Pg:dbname=$db;host=$host",
-                                                  $user, $pass,
-                                                  {RaiseError => 1,
-                                                   PrintError => 0,
-                                                   AutoCommit => 1}
-          );
-  }else{
-      $vdb =
-          Testbed::Spatial::VDS::Schema->connect( "dbi:Pg:dbname=$db;host=$host",
-                                                  $user,
-                                                  {RaiseError => 1,
-                                                   PrintError => 0,
-                                                   AutoCommit => 1}
-          );
-
-  }
-  return $vdb;
-}
+    is=>'rw',
+    lazy=>1,
+    isa=>'HashRef',
+    init_arg => undef,
+    builder => '_build_new_status_codes',
+    );
 
 sub _build_new_status_codes {
-  return {};
+    return {};
 }
 
 sub _build_status_codes {
-  my $self = shift;
-  my $vdb = $self->vdb;
-  my $rs = $vdb->resultset('Public::WimStatusCode');
-  my @all = $rs->all();
-  my $hash={};
-  for(@all){
-    $hash->{ $_->status } = 1;
-  }
-  return $hash;
+    my $self = shift;
+    my $rs = $self->resultset('Public::WimStatusCode');
+    my @all = $rs->all();
+    my $hash={};
+    for(@all){
+        $hash->{ $_->status } = 1;
+    }
+    return $hash;
 }
 
 sub check_status_code {
-  my $self = shift;
-  my $code = shift;
-  if(!$self->status_codes->{$code} &&
-     !$self->new_status_codes->{$code}){
-    my $vdb = $self->vdb;
-    $vdb->resultset('Public::WimStatusCode')->create( { 'status' => $code } );
-    $self->new_status_codes->{$code} = 1
-  }
-  return;
+    my $self = shift;
+    my $code = shift;
+    if(!$self->status_codes->{$code} &&
+       !$self->new_status_codes->{$code}){
+        $self->resultset('Public::WimStatusCode')->create(
+            { 'status' => $code }
+            );
+        $self->new_status_codes->{$code} = 1
+    }
+    return;
 }
 
+has 'inner_loop_method' =>
+    ( is => 'ro',
+      isa => 'CodeRef',
+      init_arg => undef,
+      builder => '_build_inner_loop_method',);
 
-__PACKAGE__->meta->make_immutable;
+sub _build_inner_loop_method {
+    my $inner_loop_method = sub  {
+        # this will eventually copy data into the Status tables
+        return # noop for now
+    };
+    return $inner_loop_method;
+}
 
+with 'Spatialvds::CopyIn';
+# with 'CouchDB::Trackable';
+sub _save_chunk{
+    my $self = shift;
+    my $bulk = shift;
+    my $rs = $self->resultset('Public::WimStatus');
+    eval{
+        $self->populate('Public::WimStatus',$bulk);
+    };
+    if($@){
+        return $@;
+    }
+    return;
+}
+
+sub save_data {
+    my $self = shift;
+    my $bulk = $self->data;
+    # entries might already be in database, so do the usual strategy
+    # of bulk save a bunch at a time, and if there is an issue, drop
+    # down to one by one
+    my $result = $self->_save_chunk($bulk);
+    if($result){
+        # probably a unique key collision.  Don't panic
+        if($result =~ /duplicate key value/){
+            carp 'duplicate key detected, saving individual rows';
+            # save groups of 10
+            while(@{$bulk}){
+                my @some = splice @{$bulk},0,100;
+                $result = $self->_save_chunk(\@some);
+                if($result =~ /duplicate key value/){
+                    carp 'drop down to individual rows';
+                    for my $row (@some){
+                        $self->_save_chunk([$row]);
+                    }
+                }
+            }
+
+        }else{
+            croak $result;
+        }
+    }
+    return;
+}
 1;
