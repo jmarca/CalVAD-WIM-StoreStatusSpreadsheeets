@@ -140,6 +140,17 @@ my $test_data = [
             'internal_weight_notes' => '',
             'weight_notes' => ''
           },
+# to test not crashing on unrecognized status
+          {
+            'ts' => '2013-07-01',
+            'internal_class_notes' => '',
+            'class_status' => 'Barkl',
+            'class_notes' => '',
+            'weight_status' => 'Sampo',
+            'site_no' => '666',
+            'internal_weight_notes' => '',
+            'weight_notes' => ''
+          },
 ];
 
 
@@ -187,28 +198,50 @@ is_deeply($current_status_codes,
     'N/P'=>1,
 },'nothing in the db, but the query worked');
 
-is_deeply(warning{ $obj->save_data() }
-     ,[],'no warning');
+my $warnings = [warnings { $obj->save_data() }];
+
+cmp_deeply( $warnings,
+           [
+            TD->re('duplicate key detected or bad status value, saving in groups of 100'),
+            TD->re('drop down to individual rows'),
+            TD->re('status code problem.  Please check the spreadsheet for an unknown status code'),
+           ],
+           'got expected warnings',
+    );
+
+
 # check that it got stashed properly
 for(@{$test_data}){
     my $wimstatus = $schema->resultset("Public::WimStatus")->find($_->{'site_no'},$_->{'ts'},
 );
-    my $stored = {
-        'site_no'=>$wimstatus->get_column('site_no'),
-        'ts'=>$wimstatus->ts,
-        'class_status'=>$wimstatus->get_column('class_status'),
-        'class_notes'=>$wimstatus->class_notes,
-        'weight_status'=>$wimstatus->get_column('weight_status'),
-        'weight_notes'=>$wimstatus->weight_notes,
-        'internal_class_notes'=>$wimstatus->internal_class_notes,
-        'internal_weight_notes'=>$wimstatus->internal_weight_notes,
-    };
-    is_deeply($stored,$_,"matched $_->{'site_no'}");
+    if($_->{'site_no'} == 666){
+        is($wimstatus,undef,'did not store the wonky entry');
+    }else{
+        my $stored = {
+            'site_no'=>$wimstatus->get_column('site_no'),
+            'ts'=>$wimstatus->ts,
+            'class_status'=>$wimstatus->get_column('class_status'),
+            'class_notes'=>$wimstatus->class_notes,
+            'weight_status'=>$wimstatus->get_column('weight_status'),
+            'weight_notes'=>$wimstatus->weight_notes,
+            'internal_class_notes'=>$wimstatus->internal_class_notes,
+            'internal_weight_notes'=>$wimstatus->internal_weight_notes,
+        };
+        is_deeply($stored,$_,"matched $_->{'site_no'}");
+    }
 }
 # what happens when I try it again? should get a warning
-my @warnings = warnings { $obj->save_data() };
-like($warnings[0], qr/^duplicate key detected/, 'warned ok');
-like($warnings[1], qr/^drop down to individual rows/, 'warned ok');
+
+$warnings = [warnings { $obj->save_data() }];
+cmp_deeply( $warnings,
+           [
+            TD->re('duplicate key detected or bad status value, saving in groups of 100'),
+            TD->re('drop down to individual rows'),
+            TD->re('status code problem.  Please check the spreadsheet for an unknown status code'),
+           ],
+           'got expected warnings',
+    );
+
 
 
 done_testing;

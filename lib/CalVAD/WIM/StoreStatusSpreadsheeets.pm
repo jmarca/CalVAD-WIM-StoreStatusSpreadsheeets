@@ -88,7 +88,7 @@ sub _save_chunk{
 
 sub save_data {
     my $self = shift;
-    my $bulk = $self->data;
+    my $bulk = [@{$self->data}];
     # entries might already be in database, so do the usual strategy
     # of bulk save a bunch at a time, and if there is an issue, drop
     # down to one by one
@@ -101,12 +101,12 @@ sub save_data {
             while(@{$bulk}){
                 my @some = splice @{$bulk},0,100;
                 $result = $self->_save_chunk(\@some);
-                if($result =~ /duplicate key value/ || $result =~ /violates foreign key constraint/){
+                if($result && $result =~ /duplicate key value/ || $result =~ /violates foreign key constraint/){
                     carp 'drop down to individual rows';
                     for my $row (@some){
                         $result = $self->_save_chunk([$row]);
-                        if($result =~ /violates foreign key constraint/){
-                            carp 'status code problem.  Please check the spreadsheet for an unknown status code: ',$result;
+                        if($result && $result =~ /violates foreign key constraint/){
+                            carp 'status code problem.  Please check the spreadsheet for an unknown status code: '  ; #,$result;
                         }
                     }
                 }
