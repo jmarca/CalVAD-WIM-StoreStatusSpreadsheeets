@@ -88,23 +88,26 @@ sub _save_chunk{
 
 sub save_data {
     my $self = shift;
-    my $bulk = $self->data;
+    my $bulk = [@{$self->data}];
     # entries might already be in database, so do the usual strategy
     # of bulk save a bunch at a time, and if there is an issue, drop
     # down to one by one
     my $result = $self->_save_chunk($bulk);
     if($result){
         # probably a unique key collision.  Don't panic
-        if($result =~ /duplicate key value/){
-            carp 'duplicate key detected, saving individual rows';
+        if($result =~ /duplicate key value/ || $result =~ /violates foreign key constraint/){
+            carp 'duplicate key detected or bad status value, saving in groups of 100';
             # save groups of 10
             while(@{$bulk}){
                 my @some = splice @{$bulk},0,100;
                 $result = $self->_save_chunk(\@some);
-                if($result =~ /duplicate key value/){
+                if($result && $result =~ /duplicate key value/ || $result =~ /violates foreign key constraint/){
                     carp 'drop down to individual rows';
                     for my $row (@some){
-                        $self->_save_chunk([$row]);
+                        $result = $self->_save_chunk([$row]);
+                        if($result && $result =~ /violates foreign key constraint/){
+                            carp 'status code problem.  Please check the spreadsheet for an unknown status code: '  ; #,$result;
+                        }
                     }
                 }
             }
