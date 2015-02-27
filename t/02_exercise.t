@@ -77,7 +77,8 @@ $schema->populate("Public::WimStatusCode",[
   {'status'=>'B','description'=>'Bad data.  Unusable  1 or  more  lanes'},
   {'status'=>'*','description'=>'Possible problem watching for next month data'},
   {'status'=>'P/B','description'=>'Partially Bad'},
-  {'status'=>'N/P','description'=>'Needs Processing'}
+  {'status'=>'N/P','description'=>'Needs Processing'},
+  {'status'=>'UNDEFINED','description'=>'Entry not defined in monthly status spreadsheet.'},
                   ]);
 my $test_data = [
           {
@@ -150,6 +151,33 @@ my $test_data = [
             'site_no' => '666',
             'internal_weight_notes' => '',
             'weight_notes' => ''
+          },
+          {
+            'class_notes' => 'HIGH COUNT LANE 4',
+            'weight_notes' => 'HiGH INVALIDS AND OVER WGT # 4 LANE',
+            'parser_decisions_notes' => 'Setting UNDEFINED weight status to B based on RED (#ff0000) weight note color.  ',
+            'ts' => '2010-02-01',
+            'weight_status' => 'B',
+            'class_status' => 'B',
+            'site_no' => '67'
+          },
+          {
+            'weight_notes' => '',
+            'class_notes' => 'HIGH CLASS 0 AFTER JAN 25; HIGH COUNT LANE 6 FEB 8',
+            'class_status' => 'P/B',
+            'site_no' => '68',
+            'weight_status' => 'UNDEFINED',
+            'ts' => '2010-02-01',
+            'parser_decisions_notes' => 'Forcing UNDEFINED on blank weight status.  '
+          },
+          {
+            'weight_status' => 'G',
+            'class_status' => 'G',
+            'site_no' => '69',
+            'ts' => '2010-02-01',
+            'parser_decisions_notes' => 'Setting UNDEFINED weight status to G based on black or undefined weight note color.  ',
+            'weight_notes' => 'LOW VOLUME WGT OVER ERRORS OK',
+            'class_notes' => 'LOW VOLUME ERROR COUNTS'
           },
 ];
 
