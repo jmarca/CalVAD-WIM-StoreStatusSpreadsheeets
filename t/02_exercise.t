@@ -152,6 +152,7 @@ my $test_data = [
             'internal_weight_notes' => '',
             'weight_notes' => ''
           },
+    # to test storing parser decisions notes
           {
             'class_notes' => 'HIGH COUNT LANE 4',
             'weight_notes' => 'HiGH INVALIDS AND OVER WGT # 4 LANE',
@@ -224,6 +225,7 @@ is_deeply($current_status_codes,
     '*'=>1,
     'P/B'=>1,
     'N/P'=>1,
+    'UNDEFINED'=>1,
 },'nothing in the db, but the query worked');
 
 my $warnings = [warnings { $obj->save_data() }];
@@ -252,9 +254,17 @@ for(@{$test_data}){
             'class_notes'=>$wimstatus->class_notes,
             'weight_status'=>$wimstatus->get_column('weight_status'),
             'weight_notes'=>$wimstatus->weight_notes,
-            'internal_class_notes'=>$wimstatus->internal_class_notes,
-            'internal_weight_notes'=>$wimstatus->internal_weight_notes,
         };
+        if(defined $wimstatus->internal_class_notes){
+            $stored->{'internal_class_notes'}=$wimstatus->internal_class_notes
+        }
+        if(defined $wimstatus->internal_weight_notes){
+            $stored->{'internal_weight_notes'}=$wimstatus->internal_weight_notes
+        }
+        if($wimstatus->parser_decisions_notes){
+            $stored->{'parser_decisions_notes'}=$wimstatus->parser_decisions_notes
+        }
+
         is_deeply($stored,$_,"matched $_->{'site_no'}");
     }
 }
