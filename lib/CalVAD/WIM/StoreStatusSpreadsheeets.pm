@@ -101,7 +101,7 @@ sub save_data {
             while(@{$bulk}){
                 my @some = splice @{$bulk},0,100;
                 $result = $self->_save_chunk(\@some);
-                if($result && $result =~ /duplicate key value/ || $result =~ /violates foreign key constraint/){
+                if($result && ($result =~ /duplicate key value/ || $result =~ /violates foreign key constraint/)){
                     carp 'drop down to individual rows';
                     for my $row (@some){
                         $result = $self->_save_chunk([$row]);
