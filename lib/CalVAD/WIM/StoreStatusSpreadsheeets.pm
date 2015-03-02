@@ -106,7 +106,7 @@ sub save_data {
                     for my $row (@some){
                         $result = $self->_save_chunk([$row]);
                         if($result && $result =~ /violates foreign key constraint/){
-                            carp "status code problem.  Please check the spreadsheet for an unknown status code: $row"  ; #,$result;
+                            carp "status code problem.  Please check the spreadsheet for an unknown status code: ", Dumper $row ; #,$result;
                         }
                     }
                 }
